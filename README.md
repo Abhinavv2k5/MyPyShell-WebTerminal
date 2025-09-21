@@ -36,6 +36,12 @@ MyPyShell is an interactive web-based terminal designed to replicate the experie
   - Blinking cursor for authentic feel
   - Animated AI status for AI-powered commands
 
+## Demo
+
+A short video demonstration of mypyshell web terminal is available below:
+
+https://github.com/user-attachments/assets/1467fcde-a277-42a9-bade-5dab20e00628
+
 ## 💻 Tech Stack
 
 - Backend: Python 3, Flask, psutil
