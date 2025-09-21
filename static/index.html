@@ -1,0 +1,206 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>MyPyShell</title>
+  <style>
+    /* Basic terminal look */
+    body {
+      font-family: 'Courier New', monospace;
+      background: #0b1220;
+      color: #e6eef6;
+      padding: 20px;
+    }
+
+    #out {
+      background: #071021;
+      padding: 16px;
+      height: 400px;
+      overflow-y: auto;
+      border-radius: 8px;
+
+      /* Make terminal pop out */
+      box-shadow: 
+          0 0 15px rgba(0, 0, 0, 0.5) inset, /* inner shadow */
+          0 4px 20px rgba(0, 0, 0, 0.7);      /* outer shadow */
+      border: 1px solid #1a2536;
+
+      line-height: 1.5em;
+      font-size: 14px;
+      transition: box-shadow 0.2s ease-in-out;
+    }
+
+    #out:hover {
+      box-shadow: 
+          0 0 15px rgba(0, 0, 0, 0.5) inset,
+          0 8px 25px rgba(0, 155, 160, 0.8); /* subtle teal glow on hover */
+    }
+
+    input[type=text] {
+      width: 70%;
+      padding: 8px;
+      background: #071021;
+      border: 1px solid #1a2536;
+      color: #e6eef6;
+      border-radius: 4px;
+      outline: none;
+    }
+
+    input[type=text]:focus {
+      border-color: #9be6a0;
+      box-shadow: 0 0 8px #9be6a0;
+    }
+
+    button {
+      padding: 8px 12px;
+      margin-left: 6px;
+      background: #1a2536;
+      border: 1px solid #9be6a0;
+      color: #9be6a0;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: 0.2s;
+    }
+
+    button:hover {
+      background: #9be6a0;
+      color: #071021;
+    }
+
+    label {
+      margin-left: 10px;
+      cursor: pointer;
+    }
+
+    .cmd { color: #9be6a0; }
+    .err { color: #ff6b6b; }
+    .info { color: #6ab0f3; }
+    .ai-status {
+      display: inline-block;
+      margin-left: 10px;
+      font-style: italic;
+      color: #ff9b00;
+    }
+
+    /* Blinking cursor */
+    .cursor {
+      display: inline-block;
+      width: 8px;
+      background: #9be6a0;
+      animation: blink 1s infinite;
+      vertical-align: bottom;
+    }
+
+    @keyframes blink {
+      0%, 50%, 100% { background: #9be6a0; }
+      25%, 75% { background: transparent; }
+    }
+
+    /* AI thinking dots */
+    .ai-thinking::after {
+      content: "";
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      margin-left: 4px;
+      border-radius: 50%;
+      background: #ff9b00;
+      animation: blinkDots 1s infinite;
+    }
+
+    @keyframes blinkDots {
+      0%, 20% { background: #ff9b00; }
+      40% { background: transparent; }
+      60% { background: #ff9b00; }
+      80% { background: transparent; }
+      100% { background: #ff9b00; }
+    }
+  </style>
+</head>
+<body>
+  <h2>MyPyShell (Web)</h2>
+  <div id="out">
+    <div class="info">Welcome to MyPyShell! Your commands:</div>
+    <div class="cmd">ls | pwd | cd &lt;dir&gt; | mkdir &lt;dir&gt; | touch &lt;file&gt; | rm &lt;target&gt; | move &lt;file&gt; &lt;folder&gt;</div>
+    <div class="cmd">cat &lt;file&gt; | cpu | mem | ps</div>
+    <div class="info">Tips:</div>
+    <ul class="info">
+      <li>Create multiple files/folders at once using commas.</li>
+      <li>Delete multiple files/folders in one command.</li>
+      <li>Move multiple files to a folder in one command.</li>
+      <li>Switch to AI mode to enter commands in natural language.</li>
+    </ul>
+  </div>
+
+  <div style="margin-top:10px;">
+    <input id="cmd" type="text" placeholder="Enter command here...">
+    <label><input id="useai" type="checkbox"> Use AI <span id="aiStatus"></span></label>
+    <button id="run">Run</button>
+  </div>
+
+  <script>
+    const out = document.getElementById("out");
+    const cmdEl = document.getElementById("cmd");
+    const runBtn = document.getElementById("run");
+    const useai = document.getElementById("useai");
+    const aiStatus = document.getElementById("aiStatus");
+
+    function appendLine(text, cls="info") {
+      out.innerHTML += "<div class='"+cls+"'>"+text+"</div>";
+      out.scrollTop = out.scrollHeight;
+    }
+
+    function setAIStatus(on) {
+      if(on) {
+        aiStatus.textContent = "AI ON";
+        aiStatus.className = "ai-status ai-thinking";
+      } else {
+        aiStatus.textContent = "";
+        aiStatus.className = "";
+      }
+    }
+
+    useai.onchange = () => setAIStatus(useai.checked);
+
+    async function runCommand() {
+      const text = cmdEl.value.trim();
+      if (!text) return;
+      appendLine("> " + text, "cmd");
+      cmdEl.value = "";
+
+      if (useai.checked) {
+        setAIStatus(true);
+        try {
+          const r = await fetch("/api/nlp", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({text})});
+          const j = await r.json();
+          if (!j.ok) {
+            appendLine("AI interpretation failed: " + (j.error||"unknown"), "err");
+            setAIStatus(false);
+            return;
+          }
+          appendLine("AI → " + j.interpreted, "info");
+
+          const ex = await fetch("/api/exec", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({cmd:j.interpreted})});
+          const re = await ex.json();
+          if (re.ok) appendLine(re.out || "(no output)", "info");
+          else appendLine("ERROR: " + re.error, "err");
+        } finally {
+          setAIStatus(false);
+        }
+        return;
+      }
+
+      const r2 = await fetch("/api/exec", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({cmd:text})});
+      const j2 = await r2.json();
+      if (j2.ok) appendLine(j2.out || "(no output)", "info");
+      else appendLine("ERROR: " + j2.error, "err");
+    }
+
+    runBtn.onclick = runCommand;
+    cmdEl.onkeydown = (e) => { if (e.key === "Enter") runCommand(); }
+
+    // Initial AI status
+    setAIStatus(useai.checked);
+  </script>
+</body>
+</html>
